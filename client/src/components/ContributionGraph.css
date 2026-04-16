@@ -1,0 +1,44 @@
+.contribution-graph-container {
+  background: var(--surface-container-low);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.graph-header {
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+  color: var(--primary);
+  letter-spacing: 1px;
+}
+
+.graph-grid {
+  display: grid;
+  grid-template-columns: repeat(20, 1fr);
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.graph-cell {
+  aspect-ratio: 1;
+  background: #1a1a1a;
+  border: 1px solid #333;
+}
+
+.graph-cell.level-0 { background: #1a1a1a; }
+.graph-cell.level-1 { background: #004411; }
+.graph-cell.level-2 { background: #006622; }
+.graph-cell.level-3 { background: #00aa44; }
+.graph-cell.level-4 { background: #00ff66; border-color: #00ff66; box-shadow: 0 0 5px rgba(0, 255, 102, 0.4); }
+
+.graph-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.7rem;
+  color: var(--on-surface-variant);
+}
+
+.graph-legend .graph-cell {
+  width: 12px;
+  height: 12px;
+}

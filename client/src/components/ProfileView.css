@@ -1,0 +1,100 @@
+.profile-view-container {
+  padding: 0 20px 40px 20px;
+}
+
+.profile-header {
+  background: var(--surface);
+  padding: 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.profile-info {
+  display: flex;
+  gap: 32px;
+  align-items: center;
+}
+
+.profile-avatar {
+  width: 96px;
+  height: 96px;
+  background: var(--surface-container-high);
+}
+
+.profile-username {
+  font-size: 2rem;
+  margin: 0 0 16px 0;
+  color: var(--on-surface);
+}
+
+.profile-stats {
+  display: flex;
+  gap: 24px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-label {
+  font-size: 0.7rem;
+  color: var(--on-surface-variant);
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.follow-btn {
+  background: var(--primary);
+  color: var(--on-primary);
+  border: none;
+  padding: 12px 24px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 4px 4px 0 #000;
+}
+
+.follow-btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0 #000;
+}
+
+.follow-btn.following {
+  background: #333;
+  color: #fff;
+  border: 1px solid #555;
+}
+
+.activity-header {
+  font-size: 1.2rem;
+  margin: 32px 0 16px 0;
+  color: var(--on-surface-variant);
+  border-bottom: 1px solid #333;
+  padding-bottom: 8px;
+}
+
+.no-logs {
+  padding: 40px;
+  text-align: center;
+  color: #666;
+}
+
+@media (max-width: 768px) {
+  .profile-header {
+    flex-direction: column;
+    gap: 24px;
+    align-items: flex-start;
+  }
+  
+  .profile-info {
+    gap: 16px;
+  }
+}

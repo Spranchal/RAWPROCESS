@@ -45,6 +45,33 @@
   flex-direction: column;
 }
 
+.online-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  margin-bottom: 20px;
+  color: var(--on-surface-variant);
+  background: var(--surface-container-low);
+  padding: 8px;
+  border-left: 2px solid #00ff00;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  background-color: #00ff00;
+  border-radius: 50%;
+  box-shadow: 0 0 5px #00ff00;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.4; }
+  50% { opacity: 1; }
+  100% { opacity: 0.4; }
+}
+
 .new-post-btn {
   width: 100%;
 }

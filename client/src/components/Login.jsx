@@ -24,7 +24,7 @@ export default function Login({ onLoginComplete }) {
       
       const data = await res.json();
       if (res.ok) {
-        onLoginComplete(data.token);
+        onLoginComplete(data.token, username);
       } else {
         setError(data.error);
       }

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import './PostCard.css';
 
 export default function PostCard({ post, onAcknowledge }) {
@@ -143,7 +144,12 @@ export default function PostCard({ post, onAcknowledge }) {
           {isResolved && <span className="resolved-badge">[ ORIGINALLY_ERROR: NOW_SOLVED ]</span>}
         </h3>
         <div style={{ display: 'flex', gap: '16px', color: 'var(--on-surface-variant)' }}>
-          <span className="card-author mono-text">[ USER_{post.author?.toUpperCase() || 'SYSTEM'} ]</span>
+          <span 
+            className="card-author mono-text profile-link" 
+            onClick={() => post.author && (window.location.hash = `#/profile/${post.author}`)}
+          >
+            [ USER_{post.author?.toUpperCase() || 'SYSTEM'} ]
+          </span>
           <span className="card-time mono-text">{new Date(post.timestamp).toLocaleTimeString()}</span>
         </div>
       </div>
@@ -156,9 +162,9 @@ export default function PostCard({ post, onAcknowledge }) {
             style={{ width: '100%', marginBottom: '16px', display: 'block', objectFit: 'cover', maxHeight: '400px' }} 
           />
         )}
-        {post.content.split('\n').map((para, i) => (
-          <p key={i}>{para}</p>
-        ))}
+        <div className="card-markdown-content">
+          <ReactMarkdown>{post.content}</ReactMarkdown>
+        </div>
         
         {isResolved && (
           <div className="accepted-solution-block component-border">

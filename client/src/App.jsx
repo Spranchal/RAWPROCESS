@@ -9,6 +9,7 @@ import NewLogModal from './components/NewLogModal'
 import Login from './components/Login'
 import ProjectDetails from './components/ProjectDetails'
 import ActiveSessions from './components/ActiveSessions'
+import ProfileView from './components/ProfileView'
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('rawprocess_token') || null);
@@ -19,18 +20,36 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [socket, setSocket] = useState(null);
   const [notifications, setNotifications] = useState([]);
+  const [onlineCount, setOnlineCount] = useState(0);
+  const [viewingUsername, setViewingUsername] = useState('');
+  const [hasMore, setHasMore] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-  const fetchLogs = () => {
+  const fetchLogs = (offset = 0) => {
     if (!token) return;
-    fetch('http://localhost:3001/api/feed', {
+    const url = `http://localhost:3001/api/feed/paginated?limit=10&offset=${offset}`;
+    
+    fetch(url, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(res => res.json())
       .then(data => {
-        setLogs(data.logs || []);
-        setProjectsList(data.projects || []);
+        if (offset === 0) {
+          setLogs(data.logs || []);
+          setProjectsList(data.projects || []);
+        } else {
+          setLogs(prev => [...prev, ...(data.logs || [])]);
+        }
+        setHasMore(data.hasMore);
       })
-      .catch(err => console.error("Could not load feed logs:", err));
+      .catch(err => console.error("Could not load feed logs:", err))
+      .finally(() => setIsLoadingMore(false));
+  };
+
+  const handleLoadMore = () => {
+    if (isLoadingMore) return;
+    setIsLoadingMore(true);
+    fetchLogs(logs.length);
   };
 
   useEffect(() => {
@@ -55,6 +74,23 @@ function App() {
       }
     }
   }, [token]);
+
+  useEffect(() => {
+    // Handle URL hash navigation for profiles (e.g., #/profile/admin)
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      if (hash.startsWith('#/profile/')) {
+        const username = hash.split('/profile/')[1];
+        setViewingUsername(username);
+        setCurrentView('profile');
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    handleHashChange(); // Check initial hash
+    
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   useEffect(() => {
     if (!socket) return;
@@ -107,6 +143,9 @@ function App() {
       .then(data => setNotifications(data.notifications || []))
       .catch(console.error);
     });
+    socket.on('onlineCount', (count) => {
+      setOnlineCount(count);
+    });
     return () => {
       socket.off('newLog');
       socket.off('acknowledgeLog');
@@ -115,11 +154,13 @@ function App() {
       socket.off('solutionAccepted');
       socket.off('newProject');
       socket.off('newNotification');
+      socket.off('onlineCount');
     };
   }, [socket, token]);
 
-  const handleLogin = (newToken) => {
+  const handleLogin = (newToken, user) => {
     localStorage.setItem('rawprocess_token', newToken);
+    if (user) localStorage.setItem('rawprocess_user', user);
     setToken(newToken);
   };
 
@@ -186,7 +227,7 @@ function App() {
     }).catch(console.error);
   };
 
-  if (!token) return <Login onLoginComplete={handleLogin} />;
+  if (!token) return <Login onLoginComplete={(t, u) => handleLogin(t, u)} />;
 
   return (
     <div className="app-container">
@@ -195,6 +236,7 @@ function App() {
         onLogout={handleLogout}
         currentView={currentView}
         setCurrentView={setCurrentView}
+        onlineCount={onlineCount}
       />
       <main className="main-content">
         <Hero 
@@ -206,7 +248,14 @@ function App() {
           markNotificationsRead={markNotificationsRead}
         />
         {currentView === 'feed' ? (
-          <Feed logs={logs.filter(log => log.is_public !== 0)} onAcknowledge={handleAcknowledge} searchQuery={searchQuery} />
+          <Feed 
+            logs={logs.filter(log => log.is_public !== 0)} 
+            onAcknowledge={handleAcknowledge} 
+            searchQuery={searchQuery} 
+            hasMore={hasMore}
+            onLoadMore={handleLoadMore}
+            isLoadingMore={isLoadingMore}
+          />
         ) : currentView === 'projects' ? (
           <ProjectsView 
              logs={logs} 
@@ -217,6 +266,12 @@ function App() {
           />
         ) : currentView === 'project_details' ? (
           <ProjectDetails logs={logs} projectsList={projectsList} />
+        ) : currentView === 'profile' ? (
+          <ProfileView 
+            username={viewingUsername} 
+            onAcknowledge={handleAcknowledge} 
+            socket={socket}
+          />
         ) : (
           <ActiveSessions token={token} onLogout={handleLogout} />
         )}

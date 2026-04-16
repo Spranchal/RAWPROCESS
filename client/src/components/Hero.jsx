@@ -35,7 +35,7 @@ export default function Hero({ onNewLogClick, searchQuery, setSearchQuery, curre
             {unreadCount > 0 && <span className="notification-badge mono-text">{unreadCount}</span>}
           </div>
           <img src={terminalIcon} alt="Terminal" className="header-icon" />
-          <img className="avatar component-border" src="https://api.dicebear.com/7.x/avataaars/svg?seed=Admin" alt="User" />
+          <img className="avatar component-border" src="/favicon.png" alt="User" />
         
           {showNotifications && (
             <div className="notification-panel component-border">

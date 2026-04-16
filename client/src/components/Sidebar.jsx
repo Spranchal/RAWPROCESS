@@ -1,7 +1,7 @@
 import React from 'react';
 import './Sidebar.css';
 
-export default function Sidebar({ onNewLogClick, onLogout, currentView, setCurrentView }) {
+export default function Sidebar({ onNewLogClick, onLogout, currentView, setCurrentView, onlineCount }) {
   return (
     <aside className="sidebar component-border">
       <h2 className="brand">RawProcess</h2>
@@ -39,9 +39,24 @@ export default function Sidebar({ onNewLogClick, onLogout, currentView, setCurre
           <span className="icon">[&gt;]</span>
           <span className="mono-text uppercase">Active Sessions</span>
         </a>
+        <a 
+          href="#profile" 
+          onClick={(e) => { 
+            e.preventDefault(); 
+            const me = localStorage.getItem('rawprocess_user'); // Assuming it's there, if not we'll check
+            window.location.hash = `#/profile/${me || 'admin'}`;
+          }}
+          className={`nav-link ${currentView === 'profile' ? 'active' : ''}`}
+        >
+          <span className="icon">[@]</span>
+          <span className="mono-text uppercase">My Profile</span>
+        </a>
       </nav>
 
       <div className="sidebar-footer">
+        <div className="online-status mono-text">
+          <span className="status-dot"></span> GRID_CONN: {onlineCount || 1}
+        </div>
         <button className="new-post-btn" onClick={onNewLogClick} style={{marginBottom: '16px'}}>New Log</button>
         <button className="secondary" onClick={onLogout}>Terminate_Session</button>
       </div>

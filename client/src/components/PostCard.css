@@ -334,3 +334,64 @@
 .accepted-solution-item .solution-text {
   color: var(--on-surface);
 }
+
+.profile-link {
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.profile-link:hover {
+  text-decoration: underline;
+  color: #ffffff;
+}
+
+.card-markdown-content {
+  font-family: inherit;
+  line-height: 1.6;
+}
+
+.card-markdown-content p {
+  margin-bottom: 12px;
+}
+
+.card-markdown-content h1, 
+.card-markdown-content h2, 
+.card-markdown-content h3 {
+  color: #fff;
+  margin: 24px 0 12px 0;
+  text-transform: uppercase;
+  border-bottom: 1px solid #333;
+  padding-bottom: 4px;
+}
+
+.card-markdown-content code {
+  background: #1a1a1a;
+  padding: 2px 6px;
+  border: 1px solid #333;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.9em;
+}
+
+.card-markdown-content pre {
+  background: #0a0a0a;
+  padding: 16px;
+  border-left: 3px solid var(--primary);
+  margin: 20px 0;
+  overflow-x: auto;
+}
+
+.card-markdown-content pre code {
+  background: transparent;
+  padding: 0;
+  border: none;
+}
+
+.card-markdown-content ul, 
+.card-markdown-content ol {
+  margin-left: 24px;
+  margin-bottom: 16px;
+}
+
+.card-markdown-content li {
+  margin-bottom: 6px;
+}

@@ -82,6 +82,13 @@ async function initializeDB() {
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (log_id) REFERENCES logs(id)
     );
+    CREATE TABLE IF NOT EXISTS followers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      follower TEXT NOT NULL,
+      followed TEXT NOT NULL,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(follower, followed)
+    );
   `);
 
   // Parse existing logs to dynamically seed the projects schema securely
@@ -97,9 +104,12 @@ async function initializeDB() {
   // Migrate DB to include optional imageUrl, project, author, and privacy layers
   try { await db.exec('ALTER TABLE logs ADD COLUMN imageUrl TEXT DEFAULT NULL'); } catch (e) {}
   try { await db.exec("ALTER TABLE logs ADD COLUMN project TEXT DEFAULT 'Uncategorized'"); } catch (e) {}
-  try { await db.exec("ALTER TABLE logs ADD COLUMN author TEXT DEFAULT 'System'"); } catch (e) {}
-  try { await db.exec("ALTER TABLE projects ADD COLUMN owner TEXT DEFAULT 'admin'"); } catch (e) {}
+  try { await db.exec("ALTER TABLE logs ADD COLUMN author TEXT DEFAULT 'admin' COLLATE NOCASE"); } catch (e) {}
+  try { await db.exec("ALTER TABLE projects ADD COLUMN owner TEXT DEFAULT 'admin' COLLATE NOCASE"); } catch (e) {}
   try { await db.exec("ALTER TABLE projects ADD COLUMN is_public BOOLEAN DEFAULT 1"); } catch (e) {}
+
+  // Migrate legacy logs to 'admin'
+  await db.run("UPDATE logs SET author = 'admin' WHERE author IS NULL OR author = 'System'");
 
   const countLogs = await db.get('SELECT COUNT(*) as count FROM logs');
   if (countLogs.count === 0) {
@@ -132,17 +142,24 @@ const verifyToken = (req, res, next) => {
     });
 };
 
+let onlineUsers = 0;
 io.on('connection', (socket) => {
-  console.log(`Node connected: ${socket.id}`);
+  onlineUsers++;
+  io.emit('onlineCount', onlineUsers);
+  console.log(`Node connected: ${socket.id}. Total: ${onlineUsers}`);
+
   socket.on('disconnect', () => {
-    console.log(`Node disconnected: ${socket.id}`);
+    onlineUsers = Math.max(0, onlineUsers - 1);
+    io.emit('onlineCount', onlineUsers);
+    console.log(`Node disconnected: ${socket.id}. Total: ${onlineUsers}`);
   });
 });
 
 app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body;
+  const normalizedUsername = username.toLowerCase();
   try {
-    const user = await db.get('SELECT * FROM users WHERE username = ?', username);
+    const user = await db.get('SELECT * FROM users WHERE username = ?', normalizedUsername);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const passwordIsValid = await bcrypt.compare(password, user.password);
@@ -158,13 +175,14 @@ app.post('/api/auth/login', async (req, res) => {
 app.post('/api/auth/register', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
+  const normalizedUsername = username.toLowerCase();
 
   try {
-    const existing = await db.get('SELECT * FROM users WHERE username = ?', username);
+    const existing = await db.get('SELECT * FROM users WHERE username = ?', normalizedUsername);
     if (existing) return res.status(409).json({ error: 'Observer_ID already engaged' });
 
     const hash = await bcrypt.hash(password, 10);
-    const result = await db.run('INSERT INTO users (username, password) VALUES (?, ?)', [username, hash]);
+    const result = await db.run('INSERT INTO users (username, password) VALUES (?, ?)', [normalizedUsername, hash]);
     
     const token = jwt.sign({ id: result.lastID }, JWT_SECRET, { expiresIn: 86400 });
     res.json({ auth: true, token });
@@ -201,6 +219,83 @@ app.get('/api/feed', verifyToken, async (req, res) => {
     });
 
     res.json({ logs: mappedLogs, projects: projectsList });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/feed/paginated', verifyToken, async (req, res) => {
+  const limit = parseInt(req.query.limit) || 10;
+  const offset = parseInt(req.query.offset) || 0;
+  const project = req.query.project;
+
+  try {
+    const user = await db.get('SELECT username FROM users WHERE id = ?', req.userId);
+    const currentUsername = user.username;
+    const author = req.query.author;
+
+    let query = `
+      SELECT l.*, IFNULL(p.is_public, 1) as is_public FROM logs l 
+      LEFT JOIN projects p ON l.project = p.name 
+      WHERE (l.project = 'Uncategorized' OR p.is_public = 1 OR p.owner = ?)
+    `;
+    let params = [currentUsername];
+
+    if (project) {
+      query += ` AND l.project = ?`;
+      params.push(project);
+    }
+
+    if (author) {
+      query += ` AND l.author = ?`;
+      params.push(author);
+    }
+
+    query += ` ORDER BY l.timestamp DESC LIMIT ? OFFSET ?`;
+    params.push(limit, offset);
+
+    const logs = await db.all(query, params);
+    
+    // Total count for frontend to know if more logs exist
+    let countQuery = `
+       SELECT COUNT(*) as count FROM logs l 
+       LEFT JOIN projects p ON l.project = p.name 
+       WHERE (l.project = 'Uncategorized' OR p.is_public = 1 OR p.owner = ?)
+    `;
+    let countParams = [currentUsername];
+    if (project) {
+        countQuery += ` AND l.project = ?`;
+        countParams.push(project);
+    }
+    if (author) {
+        countQuery += ` AND l.author = ?`;
+        countParams.push(author);
+    }
+    const totalCount = await db.get(countQuery, countParams);
+
+    const logIds = logs.map(l => l.id);
+    let comments = [];
+    let likes = [];
+    if (logIds.length > 0) {
+      const placeholders = logIds.map(() => '?').join(',');
+      comments = await db.all(`SELECT * FROM comments WHERE log_id IN (${placeholders})`, logIds);
+      likes = await db.all(`SELECT log_id, username FROM likes WHERE log_id IN (${placeholders})`, logIds);
+    }
+
+    const mappedLogs = logs.map(log => ({
+      ...log,
+      comments: comments.filter(c => c.log_id === log.id),
+      likes: likes.filter(l => l.log_id === log.id).map(l => l.username)
+    }));
+
+    const projectsList = await db.all('SELECT name, is_public, owner FROM projects WHERE is_public = 1 OR owner = ? ORDER BY created_at DESC', [currentUsername]);
+
+    res.json({ 
+        logs: mappedLogs, 
+        projects: projectsList,
+        hasMore: (offset + limit) < totalCount.count,
+        total: totalCount.count
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -383,6 +478,83 @@ app.get('/api/me', verifyToken, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+app.get('/api/users/:username', verifyToken, async (req, res) => {
+  const { username } = req.params;
+  try {
+    const userProfile = await db.get('SELECT username FROM users WHERE username = ?', [username]);
+    if (!userProfile) return res.status(404).json({ error: "User not found" });
+
+    const logCount = await db.get('SELECT COUNT(*) as count FROM logs WHERE author = ?', [username]);
+    const followerCount = await db.get('SELECT COUNT(*) as count FROM followers WHERE followed = ?', [username]);
+    const followingCount = await db.get('SELECT COUNT(*) as count FROM followers WHERE follower = ?', [username]);
+    
+    const currentUser = await db.get('SELECT username FROM users WHERE id = ?', [req.userId]);
+    const isFollowing = await db.get('SELECT 1 FROM followers WHERE follower = ? AND followed = ?', [currentUser.username, username]);
+
+    res.json({
+      username: userProfile.username,
+      stats: {
+        logs: logCount.count,
+        followers: followerCount.count,
+        following: followingCount.count
+      },
+      isFollowing: !!isFollowing
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/users/:username/contributions', verifyToken, async (req, res) => {
+    const { username } = req.params;
+    try {
+        // Get contribution counts for the last 365 days
+        const contributions = await db.all(`
+            SELECT strftime('%Y-%m-%d', timestamp) as date, COUNT(*) as count 
+            FROM logs 
+            WHERE author = ? AND timestamp >= date('now', '-365 days')
+            GROUP BY date
+        `, [username]);
+        
+        res.json({ contributions });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/users/:username/follow', verifyToken, async (req, res) => {
+    const { username } = req.params;
+    try {
+        const currentUser = await db.get('SELECT username FROM users WHERE id = ?', [req.userId]);
+        if (currentUser.username === username) return res.status(400).json({ error: "Cannot follow self" });
+
+        await db.run('INSERT OR IGNORE INTO followers (follower, followed) VALUES (?, ?)', [currentUser.username, username]);
+        
+        // Notify the user they have a new follower
+        await db.run(
+            'INSERT INTO notifications (recipient, actor, type) VALUES (?, ?, ?)',
+            [username, currentUser.username, 'follow']
+        );
+        const notif = await db.get('SELECT * FROM notifications WHERE id = (SELECT last_insert_rowid())');
+        io.emit('newNotification', notif);
+
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/users/:username/follow', verifyToken, async (req, res) => {
+    const { username } = req.params;
+    try {
+        const currentUser = await db.get('SELECT username FROM users WHERE id = ?', [req.userId]);
+        await db.run('DELETE FROM followers WHERE follower = ? AND followed = ?', [currentUser.username, username]);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 initializeDB().then(() => {
