@@ -1,0 +1,50 @@
+.sidebar {
+  width: 280px;
+  background-color: var(--surface-container-highest);
+  border-width: 0 3px 0 0; /* Right border only */
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+}
+
+.brand {
+  font-size: 1.8rem;
+  margin-bottom: 48px;
+}
+
+.nav-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  text-decoration: none;
+  color: var(--primary);
+  border: 3px solid transparent; /* invisible border until active/hover */
+  transition: all 0ms;
+}
+
+.nav-link:hover, .nav-link.active {
+  background-color: var(--primary);
+  color: var(--on-primary);
+  border-color: var(--primary);
+}
+
+.nav-link.active .icon {
+  color: var(--tertiary); /* Failure red dot/indicator styling logic */
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.new-post-btn {
+  width: 100%;
+}

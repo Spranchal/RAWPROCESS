@@ -1,0 +1,95 @@
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.5); /* Only exception for transparency is modal overlay */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-container {
+  background-color: var(--surface-container-lowest);
+  width: 500px;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  background-color: var(--primary);
+  color: var(--on-primary);
+  border-bottom: 3px solid var(--primary);
+}
+
+.modal-header h2 {
+  font-size: 1.2rem;
+  margin: 0;
+  letter-spacing: 1px;
+}
+
+.close-btn {
+  background: transparent;
+  border: none;
+  color: var(--on-primary);
+  padding: 0;
+  font-size: 1.2rem;
+}
+
+.close-btn:active {
+  transform: none; /* Override active state */
+  color: var(--tertiary);
+}
+
+.modal-form {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  margin-top: 12px;
+}
+
+.label-sm {
+  position: absolute;
+  top: -10px;
+  left: 12px;
+  background-color: var(--surface-container-lowest);
+  padding: 0 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.terminal-input {
+  background-color: var(--surface-container-lowest);
+  border: 2px solid var(--primary);
+  padding: 16px 12px 12px 12px;
+  color: var(--primary);
+  font-size: 1rem;
+  border-radius: 0;
+  outline: none;
+}
+
+.terminal-input:focus {
+  border-width: 3px;
+  padding: 15px 11px 11px 11px; /* Adjust padding so it doesn't jump due to border width */
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 16px;
+}

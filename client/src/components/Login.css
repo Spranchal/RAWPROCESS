@@ -1,0 +1,74 @@
+.login-screen {
+  min-height: 100vh;
+  width: 100vw;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: var(--surface-container-high);
+}
+
+.login-module {
+  width: 500px;
+  background-color: var(--surface);
+  display: flex;
+  flex-direction: column;
+}
+
+.module-header {
+  background-color: var(--primary);
+  color: var(--on-primary);
+  padding: 16px 24px;
+}
+
+.module-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  letter-spacing: 1px;
+}
+
+.login-form {
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.login-instructions {
+  font-size: 0.9rem;
+  color: var(--on-surface-variant);
+  margin-bottom: 8px;
+}
+
+.login-error {
+  background-color: var(--tertiary);
+  color: var(--on-primary);
+  padding: 12px;
+  font-weight: bold;
+}
+
+.login-btn {
+  margin-top: 16px;
+  width: 100%;
+}
+
+.auth-toggle {
+  margin-top: 12px;
+  text-align: center;
+  color: var(--on-surface-variant);
+  font-size: 0.85rem;
+}
+
+.toggle-btn {
+  background: none;
+  border: none;
+  color: var(--primary);
+  text-decoration: underline;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  padding: 0 8px;
+}
+
+.toggle-btn:hover {
+  color: #888888;
+}

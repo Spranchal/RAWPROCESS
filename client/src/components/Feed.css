@@ -1,0 +1,25 @@
+.feed-container {
+  padding: 40px;
+  column-count: 1;
+  column-gap: 24px;
+}
+
+@media (min-width: 1000px) {
+  .feed-container {
+    column-count: 2;
+  }
+}
+
+@media (min-width: 1600px) {
+  .feed-container {
+    column-count: 3;
+  }
+}
+
+.feed-loading {
+  margin: 40px;
+  padding: 24px;
+  background-color: var(--surface-container-lowest);
+  text-align: center;
+  font-weight: 700;
+}
