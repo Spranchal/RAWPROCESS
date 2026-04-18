@@ -16,35 +16,21 @@ export default function Sidebar({ onNewLogClick, onLogout, currentView, setCurre
           <span className="mono-text uppercase">Global Feed</span>
         </a>
         <a 
-          href="#projects" 
-          onClick={(e) => { e.preventDefault(); setCurrentView('projects'); }}
-          className={`nav-link ${currentView === 'projects' ? 'active' : ''}`}
+          href="#workspaces" 
+          onClick={(e) => { e.preventDefault(); setCurrentView('workspaces'); }}
+          className={`nav-link ${currentView === 'workspaces' ? 'active' : ''}`}
         >
           <span className="icon">[*]</span>
-          <span className="mono-text uppercase">My Projects</span>
-        </a>
-        <a 
-          href="#project-details" 
-          onClick={(e) => { e.preventDefault(); setCurrentView('project_details'); }}
-          className={`nav-link ${currentView === 'project_details' ? 'active' : ''}`}
-        >
-          <span className="icon">[-]</span>
-          <span className="mono-text uppercase">Project Details</span>
-        </a>
-        <a 
-          href="#active-sessions" 
-          onClick={(e) => { e.preventDefault(); setCurrentView('active_sessions'); }}
-          className={`nav-link ${currentView === 'active_sessions' ? 'active' : ''}`}
-        >
-          <span className="icon">[&gt;]</span>
-          <span className="mono-text uppercase">Active Sessions</span>
+          <span className="mono-text uppercase">Workspace Control</span>
         </a>
         <a 
           href="#profile" 
           onClick={(e) => { 
             e.preventDefault(); 
-            const me = localStorage.getItem('rawprocess_user'); // Assuming it's there, if not we'll check
-            window.location.hash = `#/profile/${me || 'admin'}`;
+            const me = localStorage.getItem('rawprocess_user');
+            const username = me || 'admin';
+            window.location.hash = `#/profile/${username}`;
+            setCurrentView('profile');
           }}
           className={`nav-link ${currentView === 'profile' ? 'active' : ''}`}
         >

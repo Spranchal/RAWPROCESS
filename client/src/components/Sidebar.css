@@ -75,3 +75,36 @@
 .new-post-btn {
   width: 100%;
 }
+
+@media (max-width: 768px) {
+  .sidebar {
+    width: 100%;
+    border-width: 0 0 3px 0; /* Bottom border on mobile */
+    padding: 16px;
+  }
+
+  .brand {
+    margin-bottom: 24px;
+    text-align: center;
+  }
+
+  .nav-menu {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .nav-link {
+    padding: 8px 12px;
+    font-size: 0.8rem;
+  }
+
+  .nav-link .icon {
+    display: none; /* Hide icons on mobile to save space */
+  }
+
+  .sidebar-footer {
+    display: none; /* Hide status and extra buttons on mobile by default to keep lean */
+  }
+}

@@ -1,70 +1,48 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { io } from 'socket.io-client'
+import { useQueryClient } from '@tanstack/react-query'
 import './App.css'
 import Sidebar from './components/Sidebar'
 import Hero from './components/Hero'
 import Feed from './components/Feed'
-import ProjectsView from './components/ProjectsView'
+import WorkspaceControl from './components/WorkspaceControl'
 import NewLogModal from './components/NewLogModal'
 import Login from './components/Login'
-import ProjectDetails from './components/ProjectDetails'
-import ActiveSessions from './components/ActiveSessions'
 import ProfileView from './components/ProfileView'
+
+import { useLogs, useAcknowledgeLog } from './hooks/useLogs'
+import { useNotifications, useMarkNotificationsRead } from './hooks/useNotifications'
+import { useProjects } from './hooks/useProjects'
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('rawprocess_token') || null);
-  const [logs, setLogs] = useState([]);
-  const [projectsList, setProjectsList] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentView, setCurrentView] = useState('feed');
   const [searchQuery, setSearchQuery] = useState('');
   const [socket, setSocket] = useState(null);
-  const [notifications, setNotifications] = useState([]);
   const [onlineCount, setOnlineCount] = useState(0);
   const [viewingUsername, setViewingUsername] = useState('');
-  const [hasMore, setHasMore] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [offset, setOffset] = useState(0);
 
-  const fetchLogs = (offset = 0) => {
-    if (!token) return;
-    const url = `http://localhost:3001/api/feed/paginated?limit=10&offset=${offset}`;
-    
-    fetch(url, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (offset === 0) {
-          setLogs(data.logs || []);
-          setProjectsList(data.projects || []);
-        } else {
-          setLogs(prev => [...prev, ...(data.logs || [])]);
-        }
-        setHasMore(data.hasMore);
-      })
-      .catch(err => console.error("Could not load feed logs:", err))
-      .finally(() => setIsLoadingMore(false));
-  };
+  const queryClient = useQueryClient();
+
+  // Queries
+  const { data: logsData, isLoading: isLoadingLogs } = useLogs({ limit: 10 + offset });
+  const { data: notificationsData } = useNotifications();
+  const { data: projectsList = [] } = useProjects();
+
+  // Mutations
+  const acknowledgeMutation = useAcknowledgeLog();
+  const markReadMutation = useMarkNotificationsRead();
 
   const handleLoadMore = () => {
-    if (isLoadingMore) return;
-    setIsLoadingMore(true);
-    fetchLogs(logs.length);
+    setOffset(prev => prev + 10);
   };
 
   useEffect(() => {
     if (token) {
       const newSocket = io('http://localhost:3001');
       setSocket(newSocket);
-      fetchLogs();
-      
-      // Fetch initial array
-      fetch('http://localhost:3001/api/notifications', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      .then(res => res.json())
-      .then(data => setNotifications(data.notifications || []))
-      .catch(err => console.error("Could not load notifications:", err));
       
       return () => newSocket.close();
     } else {
@@ -76,76 +54,62 @@ function App() {
   }, [token]);
 
   useEffect(() => {
-    // Handle URL hash navigation for profiles (e.g., #/profile/admin)
     const handleHashChange = () => {
       const hash = window.location.hash;
       if (hash.startsWith('#/profile/')) {
         const username = hash.split('/profile/')[1];
-        setViewingUsername(username);
-        setCurrentView('profile');
+        if (username) {
+          setViewingUsername(username);
+          setCurrentView('profile');
+        }
+      } else if (currentView === 'profile') {
+        setCurrentView('feed');
       }
     };
 
     window.addEventListener('hashchange', handleHashChange);
-    handleHashChange(); // Check initial hash
+    handleHashChange();
     
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
+  }, [currentView]);
 
   useEffect(() => {
+    if (currentView !== 'profile') {
+      if (window.location.hash.startsWith('#/profile/')) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+    }
+  }, [currentView]);
+
+  // Socket.io integration with React Query
+  useEffect(() => {
     if (!socket) return;
-    socket.on('newLog', (newLog) => {
-      setLogs((prev) => {
-        if (prev.some(l => l.id === newLog.id)) return prev;
-        return [{...newLog, comments: [], likes: []}, ...prev];
-      });
+
+    socket.on('newLog', () => {
+      queryClient.invalidateQueries({ queryKey: ['logs'] });
     });
-    socket.on('acknowledgeLog', (id) => {
-      setLogs((prev) => prev.map(log => 
-        log.id === parseInt(id) ? { ...log, status: 'success' } : log
-      ));
+    socket.on('acknowledgeLog', () => {
+      queryClient.invalidateQueries({ queryKey: ['logs'] });
     });
-    socket.on('likeUpdated', ({ logId, likes }) => {
-      setLogs(prev => prev.map(log => 
-        log.id === parseInt(logId) ? { ...log, likes } : log
-      ));
+    socket.on('likeUpdated', () => {
+      queryClient.invalidateQueries({ queryKey: ['logs'] });
     });
-    socket.on('newComment', ({ logId, comment }) => {
-      setLogs(prev => prev.map(log => 
-        log.id === parseInt(logId) ? { ...log, comments: [...(log.comments || []), comment] } : log
-      ));
+    socket.on('newComment', () => {
+      queryClient.invalidateQueries({ queryKey: ['logs'] });
     });
-    socket.on('solutionAccepted', ({ logId, commentId }) => {
-      setLogs(prev => prev.map(log => {
-        if (log.id === parseInt(logId)) {
-          return {
-            ...log,
-            status: 'resolved',
-            comments: (log.comments || []).map(c => c.id === parseInt(commentId) ? { ...c, accepted: 1 } : c)
-          };
-        }
-        return log;
-      }));
+    socket.on('solutionAccepted', () => {
+      queryClient.invalidateQueries({ queryKey: ['logs'] });
     });
-    socket.on('newProject', (proj) => {
-      // proj can be an object {name, is_public} or a string — normalize it
-      setProjectsList(prev => {
-        const projObj = typeof proj === 'string' ? { name: proj, is_public: 1 } : proj;
-        if (prev.some(p => (p.name || p) === projObj.name)) return prev;
-        return [...prev, projObj];
-      });
+    socket.on('newProject', () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
     });
     socket.on('newNotification', () => {
-      fetch('http://localhost:3001/api/notifications', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      .then(res => res.json())
-      .then(data => setNotifications(data.notifications || []))
-      .catch(console.error);
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
     });
     socket.on('onlineCount', (count) => {
       setOnlineCount(count);
     });
+
     return () => {
       socket.off('newLog');
       socket.off('acknowledgeLog');
@@ -156,17 +120,20 @@ function App() {
       socket.off('newNotification');
       socket.off('onlineCount');
     };
-  }, [socket, token]);
+  }, [socket, queryClient]);
 
   const handleLogin = (newToken, user) => {
     localStorage.setItem('rawprocess_token', newToken);
     if (user) localStorage.setItem('rawprocess_user', user);
     setToken(newToken);
+    queryClient.invalidateQueries();
   };
 
   const handleLogout = () => {
-    localStorage.setItem('rawprocess_token', '');
+    localStorage.removeItem('rawprocess_token');
+    localStorage.removeItem('rawprocess_user');
     setToken(null);
+    queryClient.clear();
   };
 
   const handleNewLog = async (logData) => {
@@ -184,50 +151,21 @@ function App() {
         body: formData
       });
       if (res.ok) {
-        const data = await res.json();
-        setLogs(prev => {
-          if (prev.some(l => l.id === data.log.id)) return prev;
-          return [{...data.log, comments: [], likes: []}, ...prev];
-        });
+        queryClient.invalidateQueries({ queryKey: ['logs'] });
         setIsModalOpen(false);
+      } else if (res.status === 401 || res.status === 403) {
+        handleLogout();
       }
-      else if (res.status === 401 || res.status === 403) handleLogout();
     } catch (err) {
       console.error("Error posting log:", err);
     }
   };
 
-  const handleAcknowledge = async (id) => {
-    try {
-      const res = await fetch(`http://localhost:3001/api/feed/${id}/acknowledge`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!res.ok && (res.status === 401 || res.status === 403)) handleLogout();
-    } catch (err) {
-      console.error("Error acknowledging log:", err);
-    }
-  };
+  if (!token) return <Login onLoginComplete={handleLogin} />;
 
-  const handleNewProjectLocal = (proj) => {
-    // proj can be {name, is_public} object or a string — normalize it
-    setProjectsList(prev => {
-      const projObj = typeof proj === 'string' ? { name: proj, is_public: 1 } : proj;
-      if (prev.some(p => (p.name || p) === projObj.name)) return prev;
-      return [...prev, projObj];
-    });
-  };
-
-  const markNotificationsRead = () => {
-    fetch('http://localhost:3001/api/notifications/read', {
-      method: 'PUT',
-      headers: { 'Authorization': `Bearer ${token}` }
-    }).then(() => {
-      setNotifications(prev => prev.map(n => ({ ...n, is_read: 1 })));
-    }).catch(console.error);
-  };
-
-  if (!token) return <Login onLoginComplete={(t, u) => handleLogin(t, u)} />;
+  const logs = logsData?.logs || [];
+  const hasMore = logsData?.hasMore || false;
+  const notifications = notificationsData?.notifications || [];
 
   return (
     <div className="app-container">
@@ -245,39 +183,50 @@ function App() {
           setSearchQuery={setSearchQuery} 
           currentView={currentView}
           notifications={notifications}
-          markNotificationsRead={markNotificationsRead}
+          markNotificationsRead={() => markReadMutation.mutate()}
         />
         {currentView === 'feed' ? (
           <Feed 
             logs={logs.filter(log => log.is_public !== 0)} 
-            onAcknowledge={handleAcknowledge} 
+            onAcknowledge={(id) => acknowledgeMutation.mutate(id)} 
             searchQuery={searchQuery} 
             hasMore={hasMore}
             onLoadMore={handleLoadMore}
-            isLoadingMore={isLoadingMore}
+            isLoadingMore={isLoadingLogs}
           />
-        ) : currentView === 'projects' ? (
-          <ProjectsView 
+        ) : currentView === 'workspaces' ? (
+          <WorkspaceControl 
              logs={logs} 
-             onAcknowledge={handleAcknowledge} 
              searchQuery={searchQuery} 
              projectsList={projectsList} 
-             onProjectCreated={handleNewProjectLocal} 
+             token={token}
+             onLogout={handleLogout}
           />
-        ) : currentView === 'project_details' ? (
-          <ProjectDetails logs={logs} projectsList={projectsList} />
         ) : currentView === 'profile' ? (
           <ProfileView 
             username={viewingUsername} 
-            onAcknowledge={handleAcknowledge} 
+            onAcknowledge={(id) => acknowledgeMutation.mutate(id)} 
             socket={socket}
           />
         ) : (
-          <ActiveSessions token={token} onLogout={handleLogout} />
+          <Feed 
+            logs={logs.filter(log => log.is_public !== 0)} 
+            onAcknowledge={(id) => acknowledgeMutation.mutate(id)} 
+            searchQuery={searchQuery} 
+            hasMore={hasMore}
+            onLoadMore={handleLoadMore}
+            isLoadingMore={isLoadingLogs}
+          />
         )}
       </main>
 
-      {isModalOpen && <NewLogModal onClose={() => setIsModalOpen(false)} onSubmit={handleNewLog} projectsList={projectsList} />}
+      {isModalOpen && (
+        <NewLogModal 
+          onClose={() => setIsModalOpen(false)} 
+          onSubmit={handleNewLog} 
+          projectsList={projectsList} 
+        />
+      )}
     </div>
   )
 }

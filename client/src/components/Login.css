@@ -1,13 +1,39 @@
 .login-screen {
+  position: relative;
   min-height: 100vh;
   width: 100vw;
   display: flex;
   justify-content: center;
   align-items: center;
-  background-color: var(--surface-container-high);
+  overflow: hidden;
+  background-color: #000;
+}
+
+.bg-video {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+
+.login-screen::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.7));
+  z-index: 2;
+  pointer-events: none;
 }
 
 .login-module {
+  position: relative;
+  z-index: 3;
   width: 500px;
   background-color: var(--surface);
   display: flex;

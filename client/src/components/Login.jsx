@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import './Login.css';
+import bgVideo from '../assets/bg-auth.mp4';
 
 export default function Login({ onLoginComplete }) {
   const [username, setUsername] = useState('');
@@ -35,6 +36,9 @@ export default function Login({ onLoginComplete }) {
 
   return (
     <div className="login-screen">
+      <video className="bg-video" autoPlay loop muted playsInline>
+        <source src={bgVideo} type="video/mp4" />
+      </video>
       <div className="login-module component-border">
         <div className="module-header">
           <h2 className="mono-text">&gt;_ SYSTEM_AUTHORIZATION_REQUIRED</h2>

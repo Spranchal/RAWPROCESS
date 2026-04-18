@@ -1,38 +1,23 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { useLikeLog, useCommentOnLog } from '../hooks/useLogs';
 import './PostCard.css';
 
 export default function PostCard({ post, onAcknowledge }) {
   const [commentText, setCommentText] = useState('');
   const [solutionText, setSolutionText] = useState('');
   
-  const token = localStorage.getItem('rawprocess_token');
+  const likeMutation = useLikeLog();
+  const commentMutation = useCommentOnLog();
 
-  const handleLike = async () => {
-    fetch(`http://localhost:3001/api/feed/${post.id}/like`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
+  const handleLike = () => {
+    likeMutation.mutate(post.id);
   };
 
-  const submitComment = async (type, text, setter) => {
+  const submitComment = (type, text, setter) => {
     if (!text.trim()) return;
-    await fetch(`http://localhost:3001/api/feed/${post.id}/comment`, {
-      method: 'POST',
-      headers: { 
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ content: text, type })
-    });
+    commentMutation.mutate({ logId: post.id, content: text, type });
     setter('');
-  };
-
-  const acceptSolution = async (commentId) => {
-    await fetch(`http://localhost:3001/api/feed/${post.id}/solution/${commentId}/accept`, {
-      method: 'PUT',
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
   };
 
   const isError = post.status === 'error';
@@ -106,7 +91,7 @@ export default function PostCard({ post, onAcknowledge }) {
                   {c.accepted ? (
                     <span className="solution-accepted">[ACCEPTED_FIX]</span>
                   ) : (
-                    <button className="accept-btn" onClick={() => acceptSolution(c.id)}>MARK_ACCEPTED</button>
+                    <button className="accept-btn" onClick={() => onAcknowledge(post.id, c.id)}>MARK_ACCEPTED</button>
                   )}
                 </div>
               ))}

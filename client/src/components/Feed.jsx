@@ -1,10 +1,21 @@
 import React from 'react';
 import PostCard from './PostCard';
+import LogSkeleton from './LogSkeleton';
 import './Feed.css';
 
 export default function Feed({ logs, onAcknowledge, searchQuery = '', hasMore, onLoadMore, isLoadingMore }) {
+  if (logs.length === 0 && isLoadingMore) {
+    return (
+      <div className="feed-container">
+        <LogSkeleton />
+        <LogSkeleton />
+        <LogSkeleton />
+      </div>
+    );
+  }
+
   if (!logs || logs.length === 0) {
-    return <div className="feed-loading mono-text component-border">FETCHING LOGS...</div>;
+    return <div className="feed-loading mono-text component-border">NO LOGS AVAILABLE.</div>;
   }
 
   const filteredLogs = logs.filter(log => 
@@ -17,16 +28,26 @@ export default function Feed({ logs, onAcknowledge, searchQuery = '', hasMore, o
       {filteredLogs.map(log => (
         <PostCard key={log.id} post={log} onAcknowledge={onAcknowledge} />
       ))}
-      {filteredLogs.length === 0 && <div className="feed-loading mono-text component-border">NO LOGS FOUND MATCHING QUERY '{searchQuery}'</div>}
       
-      {hasMore && (
+      {isLoadingMore && (
+        <div style={{ marginTop: '24px' }}>
+          <LogSkeleton />
+        </div>
+      )}
+
+      {filteredLogs.length === 0 && !isLoadingMore && (
+        <div className="feed-loading mono-text component-border">
+          NO LOGS FOUND MATCHING QUERY '{searchQuery}'
+        </div>
+      )}
+      
+      {hasMore && !isLoadingMore && (
         <div className="load-more-container">
           <button 
             className="load-more-btn mono-text component-border" 
             onClick={onLoadMore}
-            disabled={isLoadingMore}
           >
-            {isLoadingMore ? "[ SYNCHRONIZING_GRID_DATA... ]" : "[ LOAD_MORE_DATA ]"}
+            [ LOAD_MORE_DATA ]
           </button>
         </div>
       )}

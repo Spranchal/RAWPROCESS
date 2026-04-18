@@ -1,0 +1,98 @@
+.workspace-control-container {
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+}
+
+/* SECTION 1: COMMAND CENTER (PROJECTS) */
+.command-center-section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.workspace-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Reusing grid styles from ProjectsView but making them tighter */
+.workspaces-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+/* SECTION 2: PERFORMANCE (METRICS) */
+.performance-section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.performance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 20px;
+}
+
+/* SECTION 3: SESSION (STATUS) */
+.session-status-section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.session-panel {
+  background-color: #050505;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+}
+
+.session-header {
+  background-color: #ffffff;
+  color: #000;
+  padding: 12px 16px;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+.session-body {
+  padding: 24px;
+}
+
+.session-info-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.session-info-table td {
+  padding: 8px 0;
+  font-size: 0.9rem;
+}
+
+.session-info-table td:first-child {
+  width: 200px;
+  color: #666;
+  font-weight: bold;
+}
+
+.section-title {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--on-surface);
+  border-bottom: 2px solid var(--primary);
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  .workspace-control-container {
+    padding: 24px;
+    gap: 32px;
+  }
+}
