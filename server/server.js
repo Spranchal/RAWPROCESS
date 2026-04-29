@@ -480,6 +480,27 @@ app.get('/api/me', verifyToken, async (req, res) => {
   }
 });
 
+app.get('/api/users/search', verifyToken, async (req, res) => {
+  const { q } = req.query;
+  if (!q) return res.json({ users: [] });
+  
+  try {
+    const currentUser = await db.get('SELECT username FROM users WHERE id = ?', req.userId);
+    const users = await db.all(`
+      SELECT u.username, COUNT(f.id) as followerCount 
+      FROM users u 
+      LEFT JOIN followers f ON u.username = f.followed 
+      WHERE u.username LIKE ? AND u.username != ?
+      GROUP BY u.username 
+      LIMIT 10
+    `, [`%${q}%`, currentUser.username]);
+    
+    res.json({ users });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/users/:username', verifyToken, async (req, res) => {
   const { username } = req.params;
   try {

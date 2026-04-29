@@ -77,3 +77,18 @@ export const useFollowUser = (username) => {
     },
   });
 };
+export const useUserSearch = (query) => {
+  return useQuery({
+    queryKey: ['userSearch', query],
+    queryFn: async () => {
+      if (!query || query.trim() === '') return { users: [] };
+      const res = await fetch(`${API_BASE}/users/search?q=${encodeURIComponent(query)}`, { 
+        headers: getHeaders() 
+      });
+      if (!res.ok) throw new Error('Search failed');
+      return res.json();
+    },
+    enabled: !!query && query.length >= 2,
+    staleTime: 30000,
+  });
+};
