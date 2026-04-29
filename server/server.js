@@ -49,7 +49,10 @@ async function initializeDB() {
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL
+      password TEXT NOT NULL,
+      full_name TEXT,
+      dob TEXT,
+      github_username TEXT
     );
     CREATE TABLE IF NOT EXISTS likes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -107,6 +110,10 @@ async function initializeDB() {
   try { await db.exec("ALTER TABLE logs ADD COLUMN author TEXT DEFAULT 'admin' COLLATE NOCASE"); } catch (e) {}
   try { await db.exec("ALTER TABLE projects ADD COLUMN owner TEXT DEFAULT 'admin' COLLATE NOCASE"); } catch (e) {}
   try { await db.exec("ALTER TABLE projects ADD COLUMN is_public BOOLEAN DEFAULT 1"); } catch (e) {}
+
+  try { await db.exec('ALTER TABLE users ADD COLUMN full_name TEXT'); } catch (e) {}
+  try { await db.exec('ALTER TABLE users ADD COLUMN dob TEXT'); } catch (e) {}
+  try { await db.exec('ALTER TABLE users ADD COLUMN github_username TEXT'); } catch (e) {}
 
   // Migrate legacy logs to 'admin'
   await db.run("UPDATE logs SET author = 'admin' WHERE author IS NULL OR author = 'System'");
@@ -173,7 +180,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 app.post('/api/auth/register', async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, full_name, dob, github_username } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
   const normalizedUsername = username.toLowerCase();
 
@@ -182,7 +189,10 @@ app.post('/api/auth/register', async (req, res) => {
     if (existing) return res.status(409).json({ error: 'Observer_ID already engaged' });
 
     const hash = await bcrypt.hash(password, 10);
-    const result = await db.run('INSERT INTO users (username, password) VALUES (?, ?)', [normalizedUsername, hash]);
+    const result = await db.run(
+      'INSERT INTO users (username, password, full_name, dob, github_username) VALUES (?, ?, ?, ?, ?)',
+      [normalizedUsername, hash, full_name, dob, github_username]
+    );
     
     const token = jwt.sign({ id: result.lastID }, JWT_SECRET, { expiresIn: 86400 });
     res.json({ auth: true, token });
