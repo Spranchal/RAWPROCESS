@@ -5,7 +5,7 @@ import LogSkeleton from './LogSkeleton';
 import { useProfile, useFollowUser } from '../hooks/useUser';
 import './ProfileView.css';
 
-export default function ProfileView({ username, onAcknowledge, onAcceptSolution }) {
+export default function ProfileView({ username, onAcknowledge }) {
   const { data: profile, isLoading, isError } = useProfile(username);
   const followMutation = useFollowUser(username);
 
@@ -70,7 +70,7 @@ export default function ProfileView({ username, onAcknowledge, onAcceptSolution 
             <div className="no-logs mono-text component-border">NO_LOGS_ON_GRID</div>
           ) : (
             userLogs.map(log => (
-              <PostCard key={log.id} post={log} onAcknowledge={onAcknowledge} onAcceptSolution={onAcceptSolution} />
+              <PostCard key={log.id} post={log} onAcknowledge={onAcknowledge} />
             ))
           )}
         </div>

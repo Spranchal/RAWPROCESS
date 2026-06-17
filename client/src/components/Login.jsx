@@ -5,9 +5,6 @@ import bgVideo from '../assets/bg-auth.mp4';
 export default function Login({ onLoginComplete }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [dob, setDob] = useState('');
-  const [githubUsername, setGithubUsername] = useState('');
   const [error, setError] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
 
@@ -18,16 +15,12 @@ export default function Login({ onLoginComplete }) {
     const endpoint = isRegistering ? 'register' : 'login';
     
     try {
-      const payload = isRegistering 
-        ? { username, password, full_name: fullName, dob, github_username: githubUsername } 
-        : { username, password };
-
       const res = await fetch(`http://localhost:3001/api/auth/${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ username, password })
       });
       
       const data = await res.json();
@@ -81,40 +74,6 @@ export default function Login({ onLoginComplete }) {
               placeholder="password"
             />
           </div>
-
-          {isRegistering && (
-            <>
-              <div className="input-group">
-                <label className="mono-text uppercase label-sm">Full_Name</label>
-                <input 
-                  className="terminal-input mono-text"
-                  type="text" 
-                  value={fullName} 
-                  onChange={e => setFullName(e.target.value)}
-                  placeholder="John Doe"
-                />
-              </div>
-              <div className="input-group">
-                <label className="mono-text uppercase label-sm">D.O.B</label>
-                <input 
-                  className="terminal-input mono-text"
-                  type="date" 
-                  value={dob} 
-                  onChange={e => setDob(e.target.value)}
-                />
-              </div>
-              <div className="input-group">
-                <label className="mono-text uppercase label-sm">GitHub_ID</label>
-                <input 
-                  className="terminal-input mono-text"
-                  type="text" 
-                  value={githubUsername} 
-                  onChange={e => setGithubUsername(e.target.value)}
-                  placeholder="github_user"
-                />
-              </div>
-            </>
-          )}
 
           <button type="submit" className="login-btn">
             {isRegistering ? 'Establish_Identity()' : 'Initiate_Handshake()'}

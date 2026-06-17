@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import { useLikeLog, useCommentOnLog } from '../hooks/useLogs';
 import './PostCard.css';
 
-export default function PostCard({ post, onAcknowledge, onAcceptSolution }) {
+export default function PostCard({ post, onAcknowledge }) {
   const [commentText, setCommentText] = useState('');
   const [solutionText, setSolutionText] = useState('');
   
@@ -22,10 +22,8 @@ export default function PostCard({ post, onAcknowledge, onAcceptSolution }) {
 
   const isError = post.status === 'error';
   const isResolved = post.status === 'resolved';
-  const currentUser = localStorage.getItem('rawprocess_user');
-  const isAuthor = currentUser === post.author;
   
-  if (isError || isResolved) {
+  if (isError) {
     const traceIndex = post.content.indexOf('STACK_TRACE:');
     let message = post.content;
     let trace = '';
@@ -49,15 +47,15 @@ export default function PostCard({ post, onAcknowledge, onAcceptSolution }) {
     };
 
     return (
-      <article className={`error-card ${isResolved ? 'resolved-card' : ''}`}>
+      <article className="error-card">
         <div className="error-header mono-text">
-          <span>{isResolved ? 'USER::SYSTEM_RESTORED / ISSUE_RESOLVED' : 'USER::SYSTEM_CRASH / CRITICAL_FAILURE'}</span>
-          <span>{isResolved ? 'SYSTEM_RESOLUTION_LOG' : 'SYSTEM_ERROR_LOG'}</span>
+          <span>USER::SYSTEM_CRASH / CRITICAL_FAILURE</span>
+          <span>SYSTEM_ERROR_LOG</span>
         </div>
         <div className="error-body">
           <div className="error-icon-container">
             <div className="error-icon">
-              <span className="exclamation">{isResolved ? '✓' : '!'}</span>
+              <span className="exclamation">!</span>
             </div>
           </div>
           <div className="error-content">
@@ -93,30 +91,26 @@ export default function PostCard({ post, onAcknowledge, onAcceptSolution }) {
                   {c.accepted ? (
                     <span className="solution-accepted">[ACCEPTED_FIX]</span>
                   ) : (
-                    isAuthor && !isResolved && (
-                      <button className="accept-btn" onClick={() => onAcceptSolution(post.id, c.id)}>MARK_ACCEPTED</button>
-                    )
+                    <button className="accept-btn" onClick={() => onAcknowledge(post.id, c.id)}>MARK_ACCEPTED</button>
                   )}
                 </div>
               ))}
-              {!isResolved && (
-                <div className="solution-input-container">
-                  <input 
-                    type="text" 
-                    className="solution-input mono-text" 
-                    placeholder="SUGGEST FIX..." 
-                    value={solutionText}
-                    onChange={e => setSolutionText(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && submitComment('solution', solutionText, setSolutionText)}
-                  />
-                  <button className="solution-submit-btn" onClick={() => submitComment('solution', solutionText, setSolutionText)}>+</button>
-                </div>
-              )}
+              <div className="solution-input-container">
+                <input 
+                  type="text" 
+                  className="solution-input mono-text" 
+                  placeholder="SUGGEST FIX..." 
+                  value={solutionText}
+                  onChange={e => setSolutionText(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && submitComment('solution', solutionText, setSolutionText)}
+                />
+                <button className="solution-submit-btn" onClick={() => submitComment('solution', solutionText, setSolutionText)}>+</button>
+              </div>
             </div>
           </div>
         </div>
         <div className="error-footer mono-text">
-          <span>FAILURE_STATUS: {isResolved ? 'RESOLVED' : 'UNRESOLVED'}</span>
+          <span>FAILURE_STATUS: UNRESOLVED</span>
           <div className="error-actions">
             <button className="error-btn" onClick={handleLike}>LIKE_ERR [{post.likes?.length || 0}]</button>
             <button className="error-btn" onClick={() => onAcknowledge(post.id)}>FORK_DEBUG</button>

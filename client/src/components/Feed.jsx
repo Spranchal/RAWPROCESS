@@ -3,7 +3,7 @@ import PostCard from './PostCard';
 import LogSkeleton from './LogSkeleton';
 import './Feed.css';
 
-export default function Feed({ logs, onAcknowledge, onAcceptSolution, searchQuery = '', hasMore, onLoadMore, isLoadingMore }) {
+export default function Feed({ logs, onAcknowledge, searchQuery = '', hasMore, onLoadMore, isLoadingMore }) {
   if (logs.length === 0 && isLoadingMore) {
     return (
       <div className="feed-container">
@@ -26,7 +26,7 @@ export default function Feed({ logs, onAcknowledge, onAcceptSolution, searchQuer
   return (
     <div className="feed-container">
       {filteredLogs.map(log => (
-        <PostCard key={log.id} post={log} onAcknowledge={onAcknowledge} onAcceptSolution={onAcceptSolution} />
+        <PostCard key={log.id} post={log} onAcknowledge={onAcknowledge} />
       ))}
       
       {isLoadingMore && (
