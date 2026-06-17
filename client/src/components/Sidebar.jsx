@@ -8,6 +8,14 @@ export default function Sidebar({ onNewLogClick, onLogout, currentView, setCurre
       
       <nav className="nav-menu">
         <a 
+          href="#dashboard" 
+          onClick={(e) => { e.preventDefault(); setCurrentView('dashboard'); }}
+          className={`nav-link ${currentView === 'dashboard' ? 'active' : ''}`}
+        >
+          <span className="icon">[#]</span>
+          <span className="mono-text uppercase">Dashboard</span>
+        </a>
+        <a 
           href="#global" 
           onClick={(e) => { e.preventDefault(); setCurrentView('feed'); }}
           className={`nav-link ${currentView === 'feed' ? 'active' : ''}`}

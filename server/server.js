@@ -114,6 +114,7 @@ async function initializeDB() {
   try { await db.exec('ALTER TABLE users ADD COLUMN full_name TEXT'); } catch (e) {}
   try { await db.exec('ALTER TABLE users ADD COLUMN dob TEXT'); } catch (e) {}
   try { await db.exec('ALTER TABLE users ADD COLUMN github_username TEXT'); } catch (e) {}
+  try { await db.exec('ALTER TABLE users ADD COLUMN bio TEXT'); } catch (e) {}
 
   // Migrate legacy logs to 'admin'
   await db.run("UPDATE logs SET author = 'admin' WHERE author IS NULL OR author = 'System'");
@@ -456,6 +457,242 @@ app.post('/api/projects', verifyToken, async (req, res) => {
     }
     
     res.json({ success: true, project: safeName });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+function calculateStreak(dates) {
+  if (dates.length === 0) return 0;
+  
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split('T')[0];
+  
+  const dateSet = new Set(dates);
+  
+  if (!dateSet.has(todayStr) && !dateSet.has(yesterdayStr)) {
+    return 0;
+  }
+  
+  let streak = 0;
+  let checkDate = dateSet.has(todayStr) ? today : yesterday;
+  
+  while (true) {
+    const checkStr = checkDate.toISOString().split('T')[0];
+    if (dateSet.has(checkStr)) {
+      streak++;
+      checkDate.setDate(checkDate.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
+function calculateLongestStreak(dates) {
+  if (dates.length === 0) return 0;
+  const parsedDates = [...new Set(dates)].map(d => new Date(d)).sort((a,b) => a - b);
+  let longest = 0;
+  let current = 0;
+  let prevTime = null;
+  
+  for (const date of parsedDates) {
+    date.setHours(0,0,0,0);
+    if (prevTime === null) {
+      current = 1;
+    } else {
+      const diffTime = Math.abs(date - prevTime);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays === 1) {
+        current++;
+      } else if (diffDays > 1) {
+        if (current > longest) longest = current;
+        current = 1;
+      }
+    }
+    prevTime = date;
+  }
+  if (current > longest) longest = current;
+  return longest;
+}
+
+app.get('/api/dashboard', verifyToken, async (req, res) => {
+  try {
+    const user = await db.get('SELECT username, full_name, github_username, bio FROM users WHERE id = ?', [req.userId]);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    const username = user.username;
+
+    // 1. Streak and contributions
+    const contribLogs = await db.all('SELECT DISTINCT strftime("%Y-%m-%d", timestamp) as date FROM logs WHERE author = ? ORDER BY date DESC', [username]);
+    const dates = contribLogs.map(row => row.date);
+    const currentStreak = calculateStreak(dates);
+    const longestStreak = calculateLongestStreak(dates);
+    const totalContributions = dates.length;
+
+    // 2. Stats Cards
+    const logsTodayRes = await db.get('SELECT COUNT(*) as count FROM logs WHERE author = ? AND date(timestamp) = date("now")', [username]);
+    const likesReceivedRes = await db.get('SELECT COUNT(*) as count FROM likes WHERE log_id IN (SELECT id FROM logs WHERE author = ?)', [username]);
+    const commentsReceivedRes = await db.get('SELECT COUNT(*) as count FROM comments WHERE log_id IN (SELECT id FROM logs WHERE author = ?)', [username]);
+    const activeProjectsRes = await db.get('SELECT COUNT(*) as count FROM projects WHERE owner = ?', [username]);
+    const followersCountRes = await db.get('SELECT COUNT(*) as count FROM followers WHERE followed = ?', [username]);
+    const contribThisWeekRes = await db.get('SELECT COUNT(*) as count FROM logs WHERE author = ? AND timestamp >= date("now", "-7 days")', [username]);
+
+    const stats = {
+      currentStreak,
+      longestStreak,
+      totalContributions,
+      logsToday: logsTodayRes ? logsTodayRes.count : 0,
+      likesReceived: likesReceivedRes ? likesReceivedRes.count : 0,
+      commentsReceived: commentsReceivedRes ? commentsReceivedRes.count : 0,
+      activeProjects: activeProjectsRes ? activeProjectsRes.count : 0,
+      followers: followersCountRes ? followersCountRes.count : 0,
+      contributionsThisWeek: contribThisWeekRes ? contribThisWeekRes.count : 0
+    };
+
+    // 3. Recent Notifications
+    const recentNotifications = await db.all(`
+      SELECT n.*, l.title as log_title
+      FROM notifications n
+      LEFT JOIN logs l ON n.log_id = l.id
+      WHERE n.recipient = ?
+      ORDER BY n.timestamp DESC
+      LIMIT 5
+    `, [username]);
+
+    // 4. Recent Followers
+    const recentFollowers = await db.all(`
+      SELECT u.username, u.full_name, u.github_username, IFNULL(u.bio, 'Observer of the Grid') as bio,
+             EXISTS(SELECT 1 FROM followers WHERE follower = ? AND followed = u.username) as is_following
+      FROM followers f
+      JOIN users u ON f.follower = u.username
+      WHERE f.followed = ?
+      ORDER BY f.timestamp DESC
+      LIMIT 5
+    `, [username, username]);
+
+    // 5. Recent Projects
+    const recentProjects = await db.all(`
+      SELECT p.*,
+             COALESCE(MAX(l.timestamp), p.created_at) as last_updated,
+             SUM(CASE WHEN l.status = 'error' THEN 1 ELSE 0 END) as open_issues,
+             SUM(CASE WHEN l.status = 'resolved' THEN 1 ELSE 0 END) as resolved_issues,
+             SUM(CASE WHEN l.status IN ('error', 'resolved') THEN 1 ELSE 0 END) as total_issues
+      FROM projects p
+      LEFT JOIN logs l ON p.name = l.project
+      WHERE p.owner = ?
+      GROUP BY p.name
+      ORDER BY last_updated DESC
+      LIMIT 5
+    `, [username]);
+
+    // 6. Trending Logs
+    const trendingLogs = await db.all(`
+      SELECT l.*,
+             (SELECT COUNT(*) FROM likes WHERE log_id = l.id) as likes_count,
+             (SELECT COUNT(*) FROM comments WHERE log_id = l.id) as comments_count,
+             ((SELECT COUNT(*) FROM likes WHERE log_id = l.id) * 3 + (SELECT COUNT(*) FROM comments WHERE log_id = l.id) * 2) as score
+      FROM logs l
+      LEFT JOIN projects p ON l.project = p.name
+      WHERE (l.project = 'Uncategorized' OR p.is_public = 1 OR p.owner = ?)
+      ORDER BY score DESC, l.timestamp DESC
+      LIMIT 5
+    `, [username]);
+
+    // 7. Activity Timeline
+    const [pLogs, pComments, pFollows, pProjects, pAccepted] = await Promise.all([
+      db.all('SELECT "post" as type, title, project, timestamp FROM logs WHERE author = ? ORDER BY timestamp DESC LIMIT 10', [username]),
+      db.all('SELECT "comment" as type, c.content, c.type as comment_type, l.title as log_title, c.timestamp FROM comments c JOIN logs l ON c.log_id = l.id WHERE c.username = ? ORDER BY c.timestamp DESC LIMIT 10', [username]),
+      db.all('SELECT "follow" as type, followed, timestamp FROM followers WHERE follower = ? ORDER BY timestamp DESC LIMIT 10', [username]),
+      db.all('SELECT "project" as type, name as project_title, created_at as timestamp FROM projects WHERE owner = ? ORDER BY created_at DESC LIMIT 10', [username]),
+      db.all('SELECT "accept_solution" as type, c.username as solver, l.title as log_title, c.timestamp FROM comments c JOIN logs l ON c.log_id = l.id WHERE l.author = ? AND c.accepted = 1 ORDER BY c.timestamp DESC LIMIT 10', [username])
+    ]);
+    
+    const activityTimeline = [
+      ...pLogs.map(item => ({ ...item })),
+      ...pComments.map(item => ({ ...item })),
+      ...pFollows.map(item => ({ ...item })),
+      ...pProjects.map(item => ({ ...item })),
+      ...pAccepted.map(item => ({ ...item }))
+    ]
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+    .slice(0, 10);
+
+    // 8. Suggested Developers
+    const suggestedUsers = await db.all(`
+      SELECT u.username, u.full_name, u.github_username, IFNULL(u.bio, 'Observer of the Grid') as bio,
+        (SELECT COUNT(*) FROM followers f1 
+         JOIN followers f2 ON f1.follower = f2.follower
+         WHERE f1.followed = ? AND f2.followed = u.username) as mutual_count
+      FROM users u
+      WHERE u.username != ? 
+        AND u.username NOT IN (SELECT followed FROM followers WHERE follower = ?)
+      ORDER BY mutual_count DESC, u.id DESC
+      LIMIT 5
+    `, [username, username, username]);
+
+    // 9. Analytics charts data
+    const [aLogs, aLikes, aComments, aProj] = await Promise.all([
+      db.all(`
+        SELECT strftime('%W', timestamp) as week, COUNT(*) as count 
+        FROM logs 
+        WHERE author = ? AND timestamp >= date('now', '-28 days')
+        GROUP BY week
+        ORDER BY week ASC
+      `, [username]),
+      db.all(`
+        SELECT strftime('%W', l.timestamp) as week, COUNT(lk.id) as count 
+        FROM logs l
+        JOIN likes lk ON l.id = lk.log_id
+        WHERE l.author = ? AND l.timestamp >= date('now', '-28 days')
+        GROUP BY week
+        ORDER BY week ASC
+      `, [username]),
+      db.all(`
+        SELECT strftime('%W', l.timestamp) as week, COUNT(c.id) as count 
+        FROM logs l
+        JOIN comments c ON l.id = c.log_id
+        WHERE l.author = ? AND l.timestamp >= date('now', '-28 days')
+        GROUP BY week
+        ORDER BY week ASC
+      `, [username]),
+      db.all(`
+        SELECT project, COUNT(*) as count
+        FROM logs
+        WHERE author = ? AND project != 'Uncategorized' AND project IS NOT NULL
+        GROUP BY project
+        ORDER BY count DESC
+        LIMIT 5
+      `, [username])
+    ]);
+
+    const getWeeklyArray = (weekRows) => {
+      const arr = weekRows.map(r => r.count);
+      while (arr.length < 4) arr.unshift(0);
+      return arr.slice(-4);
+    };
+
+    const analytics = {
+      logsPerWeek: getWeeklyArray(aLogs),
+      likesPerWeek: getWeeklyArray(aLikes),
+      commentsPerWeek: getWeeklyArray(aComments),
+      projectActivity: aProj.map(r => ({ project: r.project, count: r.count }))
+    };
+
+    res.json({
+      user,
+      stats,
+      recentNotifications,
+      recentFollowers,
+      recentProjects,
+      trendingLogs,
+      activityTimeline,
+      suggestedUsers,
+      analytics
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
