@@ -9,15 +9,16 @@ import WorkspaceControl from './components/WorkspaceControl'
 import NewLogModal from './components/NewLogModal'
 import Login from './components/Login'
 import ProfileView from './components/ProfileView'
+import Dashboard from './components/Dashboard'
 
-import { useLogs, useAcknowledgeLog } from './hooks/useLogs'
+import { useLogs, useAcknowledgeLog, useAcceptSolution } from './hooks/useLogs'
 import { useNotifications, useMarkNotificationsRead } from './hooks/useNotifications'
 import { useProjects } from './hooks/useProjects'
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('rawprocess_token') || null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentView, setCurrentView] = useState('feed');
+  const [currentView, setCurrentView] = useState('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [socket, setSocket] = useState(null);
   const [onlineCount, setOnlineCount] = useState(0);
@@ -33,6 +34,7 @@ function App() {
 
   // Mutations
   const acknowledgeMutation = useAcknowledgeLog();
+  const acceptSolutionMutation = useAcceptSolution();
   const markReadMutation = useMarkNotificationsRead();
 
   const handleLoadMore = () => {
@@ -87,24 +89,31 @@ function App() {
 
     socket.on('newLog', () => {
       queryClient.invalidateQueries({ queryKey: ['logs'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     });
     socket.on('acknowledgeLog', () => {
       queryClient.invalidateQueries({ queryKey: ['logs'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     });
     socket.on('likeUpdated', () => {
       queryClient.invalidateQueries({ queryKey: ['logs'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     });
     socket.on('newComment', () => {
       queryClient.invalidateQueries({ queryKey: ['logs'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     });
     socket.on('solutionAccepted', () => {
       queryClient.invalidateQueries({ queryKey: ['logs'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     });
     socket.on('newProject', () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     });
     socket.on('newNotification', () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     });
     socket.on('onlineCount', (count) => {
       setOnlineCount(count);
@@ -185,10 +194,18 @@ function App() {
           notifications={notifications}
           markNotificationsRead={() => markReadMutation.mutate()}
         />
-        {currentView === 'feed' ? (
+        {currentView === 'dashboard' ? (
+          <Dashboard 
+            setCurrentView={setCurrentView}
+            setSearchQuery={setSearchQuery}
+            setIsModalOpen={setIsModalOpen}
+            token={token}
+          />
+        ) : currentView === 'feed' ? (
           <Feed 
-            logs={logs.filter(log => log.is_public !== 0)} 
+            logs={logs} 
             onAcknowledge={(id) => acknowledgeMutation.mutate(id)} 
+            onAcceptSolution={(logId, commentId) => acceptSolutionMutation.mutate({ logId, commentId })}
             searchQuery={searchQuery} 
             hasMore={hasMore}
             onLoadMore={handleLoadMore}
@@ -206,16 +223,15 @@ function App() {
           <ProfileView 
             username={viewingUsername} 
             onAcknowledge={(id) => acknowledgeMutation.mutate(id)} 
+            onAcceptSolution={(logId, commentId) => acceptSolutionMutation.mutate({ logId, commentId })}
             socket={socket}
           />
         ) : (
-          <Feed 
-            logs={logs.filter(log => log.is_public !== 0)} 
-            onAcknowledge={(id) => acknowledgeMutation.mutate(id)} 
-            searchQuery={searchQuery} 
-            hasMore={hasMore}
-            onLoadMore={handleLoadMore}
-            isLoadingMore={isLoadingLogs}
+          <Dashboard 
+            setCurrentView={setCurrentView}
+            setSearchQuery={setSearchQuery}
+            setIsModalOpen={setIsModalOpen}
+            token={token}
           />
         )}
       </main>
