@@ -15,9 +15,9 @@ export const useProfile = (username) => {
     queryKey: ['profile', username],
     queryFn: async () => {
       const [profileRes, contribRes, logsRes] = await Promise.all([
-        fetch(`${API_BASE}/users/${username}`, { headers: getHeaders() }),
-        fetch(`${API_BASE}/users/${username}/contributions`, { headers: getHeaders() }),
-        fetch(`${API_BASE}/feed/paginated?author=${username}`, { headers: getHeaders() })
+        fetch(`${API_BASE}/users/${encodeURIComponent(username)}`, { headers: getHeaders() }),
+        fetch(`${API_BASE}/users/${encodeURIComponent(username)}/contributions`, { headers: getHeaders() }),
+        fetch(`${API_BASE}/feed/paginated?author=${encodeURIComponent(username)}`, { headers: getHeaders() })
       ]);
 
       if (!profileRes.ok || !contribRes.ok || !logsRes.ok) {
@@ -44,7 +44,7 @@ export const useFollowUser = (username) => {
   return useMutation({
     mutationFn: async ({ isFollowing }) => {
       const method = isFollowing ? 'DELETE' : 'POST';
-      const res = await fetch(`${API_BASE}/users/${username}/follow`, {
+      const res = await fetch(`${API_BASE}/users/${encodeURIComponent(username)}/follow`, {
         method,
         headers: getHeaders(),
       });
@@ -92,3 +92,100 @@ export const useUserSearch = (query) => {
     staleTime: 30000,
   });
 };
+
+export const useUpdateProfile = (username) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (formData) => {
+      const res = await fetch(`${API_BASE}/users/profile`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('rawprocess_token')}`
+        },
+        body: formData
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to update profile');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profile', username] });
+      queryClient.invalidateQueries({ queryKey: ['logs'] });
+    }
+  });
+};
+
+export const usePinProject = (username) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (name) => {
+      const res = await fetch(`${API_BASE}/users/pins/project`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ name })
+      });
+      if (!res.ok) throw new Error('Failed to pin project');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profile', username] });
+    }
+  });
+};
+
+export const useUnpinProject = (username) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (name) => {
+      const res = await fetch(`${API_BASE}/users/pins/project`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+        body: JSON.stringify({ name })
+      });
+      if (!res.ok) throw new Error('Failed to unpin project');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profile', username] });
+    }
+  });
+};
+
+export const usePinLog = (username) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id) => {
+      const res = await fetch(`${API_BASE}/users/pins/log`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ id })
+      });
+      if (!res.ok) throw new Error('Failed to pin log');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profile', username] });
+    }
+  });
+};
+
+export const useUnpinLog = (username) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id) => {
+      const res = await fetch(`${API_BASE}/users/pins/log`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+        body: JSON.stringify({ id })
+      });
+      if (!res.ok) throw new Error('Failed to unpin log');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profile', username] });
+    }
+  });
+};
+

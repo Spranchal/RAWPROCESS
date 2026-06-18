@@ -59,7 +59,7 @@ function App() {
     const handleHashChange = () => {
       const hash = window.location.hash;
       if (hash.startsWith('#/profile/')) {
-        const username = hash.split('/profile/')[1];
+        const username = decodeURIComponent(hash.split('/profile/')[1]);
         if (username) {
           setViewingUsername(username);
           setCurrentView('profile');
@@ -153,6 +153,8 @@ function App() {
       formData.append('status', logData.status);
       if (logData.project) formData.append('project', logData.project);
       if (logData.image) formData.append('image', logData.image);
+      if (logData.language) formData.append('language', logData.language);
+      if (logData.tags) formData.append('tags', logData.tags);
 
       const res = await fetch('http://localhost:3001/api/feed', {
         method: 'POST',

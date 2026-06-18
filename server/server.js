@@ -115,6 +115,34 @@ async function initializeDB() {
   try { await db.exec('ALTER TABLE users ADD COLUMN dob TEXT'); } catch (e) {}
   try { await db.exec('ALTER TABLE users ADD COLUMN github_username TEXT'); } catch (e) {}
   try { await db.exec('ALTER TABLE users ADD COLUMN bio TEXT'); } catch (e) {}
+  try { await db.exec('ALTER TABLE users ADD COLUMN avatar_url TEXT DEFAULT NULL'); } catch (e) {}
+  try { await db.exec('ALTER TABLE users ADD COLUMN cover_url TEXT DEFAULT NULL'); } catch (e) {}
+  try { await db.exec('ALTER TABLE users ADD COLUMN skills TEXT DEFAULT NULL'); } catch (e) {}
+  try { await db.exec('ALTER TABLE users ADD COLUMN tech_stack TEXT DEFAULT NULL'); } catch (e) {}
+  try { await db.exec('ALTER TABLE users ADD COLUMN github_link TEXT DEFAULT NULL'); } catch (e) {}
+  try { await db.exec('ALTER TABLE users ADD COLUMN linkedin_link TEXT DEFAULT NULL'); } catch (e) {}
+  try { await db.exec('ALTER TABLE users ADD COLUMN portfolio_link TEXT DEFAULT NULL'); } catch (e) {}
+  try { await db.exec('ALTER TABLE users ADD COLUMN company TEXT DEFAULT NULL'); } catch (e) {}
+  try { await db.exec('ALTER TABLE users ADD COLUMN college TEXT DEFAULT NULL'); } catch (e) {}
+  try { await db.exec('ALTER TABLE users ADD COLUMN location TEXT DEFAULT NULL'); } catch (e) {}
+  try { await db.exec('ALTER TABLE users ADD COLUMN created_at DATETIME DEFAULT NULL'); } catch (e) {}
+
+  try { await db.exec('ALTER TABLE logs ADD COLUMN language TEXT DEFAULT NULL'); } catch (e) {}
+  try { await db.exec('ALTER TABLE logs ADD COLUMN tags TEXT DEFAULT NULL'); } catch (e) {}
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS pinned_projects (
+      username TEXT NOT NULL,
+      project_name TEXT NOT NULL,
+      UNIQUE(username, project_name)
+    );
+    CREATE TABLE IF NOT EXISTS pinned_logs (
+      username TEXT NOT NULL,
+      log_id INTEGER NOT NULL,
+      UNIQUE(username, log_id)
+    );
+  `);
+
 
   // Migrate legacy logs to 'admin'
   await db.run("UPDATE logs SET author = 'admin' WHERE author IS NULL OR author = 'System'");
@@ -314,7 +342,7 @@ app.get('/api/feed/paginated', verifyToken, async (req, res) => {
 
 // Upgraded with Multer multi-part parser & Security Injection
 app.post('/api/feed', verifyToken, upload.single('image'), async (req, res) => {
-  const { title, content, status, project } = req.body;
+  const { title, content, status, project, language, tags } = req.body;
   const user = await db.get('SELECT username FROM users WHERE id = ?', req.userId);
   
   if (!title || !content || !status) {
@@ -326,8 +354,8 @@ app.post('/api/feed', verifyToken, upload.single('image'), async (req, res) => {
 
   try {
     const result = await db.run(
-      'INSERT INTO logs (title, content, status, imageUrl, project, author) VALUES (?, ?, ?, ?, ?, ?)',
-      [title, content, status, imageUrl, safeProjectName, user.username]
+      'INSERT INTO logs (title, content, status, imageUrl, project, author, language, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [title, content, status, imageUrl, safeProjectName, user.username, language || null, tags || null]
     );
     const newLog = await db.get('SELECT * FROM logs WHERE id = ?', result.lastID);
     newLog.comments = [];
@@ -749,9 +777,12 @@ app.get('/api/users/search', verifyToken, async (req, res) => {
 });
 
 app.get('/api/users/:username', verifyToken, async (req, res) => {
-  const { username } = req.params;
+  const username = req.params.username.toLowerCase();
   try {
-    const userProfile = await db.get('SELECT username FROM users WHERE username = ?', [username]);
+    const userProfile = await db.get(`
+      SELECT id, username, full_name, bio, avatar_url, cover_url, skills, tech_stack, 
+             github_link, linkedin_link, portfolio_link, company, college, location, created_at 
+      FROM users WHERE username = ?`, [username]);
     if (!userProfile) return res.status(404).json({ error: "User not found" });
 
     const logCount = await db.get('SELECT COUNT(*) as count FROM logs WHERE author = ?', [username]);
@@ -759,24 +790,276 @@ app.get('/api/users/:username', verifyToken, async (req, res) => {
     const followingCount = await db.get('SELECT COUNT(*) as count FROM followers WHERE follower = ?', [username]);
     
     const currentUser = await db.get('SELECT username FROM users WHERE id = ?', [req.userId]);
-    const isFollowing = await db.get('SELECT 1 FROM followers WHERE follower = ? AND followed = ?', [currentUser.username, username]);
+    const currentUsername = currentUser ? currentUser.username : '';
+    const isFollowing = currentUsername
+      ? await db.get('SELECT 1 FROM followers WHERE follower = ? AND followed = ?', [currentUsername, username])
+      : null;
+
+    // Calculate Streaks
+    const contribLogs = await db.all('SELECT DISTINCT strftime("%Y-%m-%d", timestamp) as date FROM logs WHERE author = ? ORDER BY date DESC', [username]);
+    const dates = contribLogs.map(row => row.date);
+    const currentStreak = calculateStreak(dates);
+    const longestStreak = calculateLongestStreak(dates);
+
+    // Calculate Languages and Most Used Technology
+    const languagesRaw = await db.all(`
+      SELECT language, COUNT(*) as count 
+      FROM logs 
+      WHERE author = ? AND language IS NOT NULL AND language != '' 
+      GROUP BY language 
+      ORDER BY count DESC`, [username]);
+    const totalLangLogs = languagesRaw.reduce((sum, item) => sum + item.count, 0);
+    const languages = languagesRaw.map(lang => ({
+      name: lang.language,
+      count: lang.count,
+      percentage: totalLangLogs > 0 ? Math.round((lang.count / totalLangLogs) * 100) : 0
+    }));
+    const mostUsedTechnology = languages.length > 0 ? languages[0].name : "N/A";
+
+    // Dynamic Achievements
+    const achievements = [];
+    const totalLogs = logCount.count;
+    
+    const solutionsAccepted = await db.get("SELECT COUNT(*) as count FROM comments WHERE username = ? AND accepted = 1", [username]);
+    const solutionsAcceptedCount = solutionsAccepted ? solutionsAccepted.count : 0;
+    
+    const errorLogs = await db.get("SELECT COUNT(*) as count FROM logs WHERE author = ? AND status = 'error'", [username]);
+    const errorLogsCount = errorLogs ? errorLogs.count : 0;
+    
+    const publicWorkspaces = await db.get("SELECT COUNT(*) as count FROM projects WHERE owner = ? AND is_public = 1", [username]);
+    const publicWorkspacesCount = publicWorkspaces ? publicWorkspaces.count : 0;
+    
+    const totalWorkspaces = await db.get("SELECT COUNT(*) as count FROM projects WHERE owner = ?", [username]);
+    const totalWorkspacesCount = totalWorkspaces ? totalWorkspaces.count : 0;
+
+    if (totalLogs >= 1) {
+      achievements.push({
+        id: "pioneer",
+        title: "Pioneer",
+        description: "Engaged first log transmission on the Grid",
+        icon: "🚀"
+      });
+    }
+    if (errorLogsCount >= 1) {
+      achievements.push({
+        id: "bug_hunter",
+        title: "Bug Hunter",
+        description: "Diagnosed a critical system failure log",
+        icon: "🐛"
+      });
+    }
+    if (solutionsAcceptedCount >= 1) {
+      achievements.push({
+        id: "troubleshooter",
+        title: "Troubleshooter",
+        description: "Resolved a system incident with an accepted solution",
+        icon: "🔧"
+      });
+    }
+    if (followingCount.count >= 3) {
+      achievements.push({
+        id: "network_specialist",
+        title: "Network Specialist",
+        description: "Observing 3 or more nodes on the grid",
+        icon: "📡"
+      });
+    }
+    if (followerCount.count >= 5) {
+      achievements.push({
+        id: "team_leader",
+        title: "Team Leader",
+        description: "Observed by 5 or more observers",
+        icon: "👥"
+      });
+    }
+    if (totalLogs >= 10) {
+      achievements.push({
+        id: "code_warrior",
+        title: "Code Warrior",
+        description: "Committed 10 or more transmissions",
+        icon: "⚔️"
+      });
+    }
+    if (currentStreak >= 3) {
+      achievements.push({
+        id: "streak_master",
+        title: "Streak Master",
+        description: "Maintained a 3-day active transmission streak",
+        icon: "🔥"
+      });
+    }
+    if (publicWorkspacesCount >= 1) {
+      achievements.push({
+        id: "publicist",
+        title: "Publicist",
+        description: "Published a communal network workspace",
+        icon: "🌐"
+      });
+    }
+    if (totalWorkspacesCount >= 3) {
+      achievements.push({
+        id: "architect",
+        title: "Architect",
+        description: "Constructed 3 or more active workspaces",
+        icon: "🏛️"
+      });
+    }
+
+    // Pinned Projects
+    const pinnedProjects = await db.all(`
+      SELECT p.* FROM pinned_projects pp 
+      JOIN projects p ON pp.project_name = p.name 
+      WHERE pp.username = ?
+      ORDER BY p.created_at DESC`, [username]);
+
+    // Pinned Logs with metadata
+    const pinnedLogsRaw = await db.all(`
+      SELECT l.* FROM pinned_logs pl 
+      JOIN logs l ON pl.log_id = l.id 
+      WHERE pl.username = ?
+      ORDER BY l.timestamp DESC`, [username]);
+    
+    const pinnedLogs = [];
+    if (pinnedLogsRaw.length > 0) {
+      const logIds = pinnedLogsRaw.map(l => l.id);
+      const placeholders = logIds.map(() => '?').join(',');
+      const comments = await db.all(`SELECT * FROM comments WHERE log_id IN (${placeholders})`, logIds);
+      const likes = await db.all(`SELECT log_id, username FROM likes WHERE log_id IN (${placeholders})`, logIds);
+      
+      pinnedLogsRaw.forEach(log => {
+        pinnedLogs.push({
+          ...log,
+          comments: comments.filter(c => c.log_id === log.id),
+          likes: likes.filter(l => l.log_id === log.id).map(l => l.username)
+        });
+      });
+    }
 
     res.json({
-      username: userProfile.username,
+      ...userProfile,
       stats: {
         logs: logCount.count,
         followers: followerCount.count,
-        following: followingCount.count
+        following: followingCount.count,
+        currentStreak,
+        longestStreak
       },
-      isFollowing: !!isFollowing
+      isFollowing: !!isFollowing,
+      achievements,
+      languages,
+      mostUsedTechnology,
+      pinnedProjects,
+      pinnedLogs
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// Update profile details and avatars
+app.put('/api/users/profile', verifyToken, upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), async (req, res) => {
+  const { full_name, bio, skills, tech_stack, github_link, linkedin_link, portfolio_link, company, college, location } = req.body;
+  try {
+    const user = await db.get('SELECT username, avatar_url, cover_url FROM users WHERE id = ?', [req.userId]);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    let avatarUrl = req.body.avatar_url || user.avatar_url;
+    let coverUrl = req.body.cover_url || user.cover_url;
+
+    if (req.files) {
+      if (req.files['avatar'] && req.files['avatar'][0]) {
+        avatarUrl = `/uploads/${req.files['avatar'][0].filename}`;
+      }
+      if (req.files['cover'] && req.files['cover'][0]) {
+        coverUrl = `/uploads/${req.files['cover'][0].filename}`;
+      }
+    }
+
+    await db.run(`
+      UPDATE users 
+      SET full_name = ?, bio = ?, skills = ?, tech_stack = ?, github_link = ?, 
+          linkedin_link = ?, portfolio_link = ?, company = ?, college = ?, location = ?,
+          avatar_url = ?, cover_url = ?
+      WHERE id = ?`,
+      [
+        full_name === undefined ? null : full_name,
+        bio === undefined ? null : bio,
+        skills === undefined ? null : skills,
+        tech_stack === undefined ? null : tech_stack,
+        github_link === undefined ? null : github_link,
+        linkedin_link === undefined ? null : linkedin_link,
+        portfolio_link === undefined ? null : portfolio_link,
+        company === undefined ? null : company,
+        college === undefined ? null : college,
+        location === undefined ? null : location,
+        avatarUrl === undefined ? null : avatarUrl,
+        coverUrl === undefined ? null : coverUrl,
+        req.userId
+      ]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Pinning/Unpinning Workspaces
+app.post('/api/users/pins/project', verifyToken, async (req, res) => {
+  const { name } = req.body;
+  try {
+    const user = await db.get('SELECT username FROM users WHERE id = ?', req.userId);
+    const count = await db.get('SELECT COUNT(*) as count FROM pinned_projects WHERE username = ?', [user.username]);
+    if (count.count >= 6) {
+      return res.status(400).json({ error: "Maximum of 6 pinned projects allowed" });
+    }
+    await db.run('INSERT OR IGNORE INTO pinned_projects (username, project_name) VALUES (?, ?)', [user.username, name]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/users/pins/project', verifyToken, async (req, res) => {
+  const { name } = req.body;
+  try {
+    const user = await db.get('SELECT username FROM users WHERE id = ?', req.userId);
+    await db.run('DELETE FROM pinned_projects WHERE username = ? AND project_name = ?', [user.username, name]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Pinning/Unpinning Transmissions (Logs)
+app.post('/api/users/pins/log', verifyToken, async (req, res) => {
+  const { id } = req.body;
+  try {
+    const user = await db.get('SELECT username FROM users WHERE id = ?', req.userId);
+    const count = await db.get('SELECT COUNT(*) as count FROM pinned_logs WHERE username = ?', [user.username]);
+    if (count.count >= 6) {
+      return res.status(400).json({ error: "Maximum of 6 pinned logs allowed" });
+    }
+    await db.run('INSERT OR IGNORE INTO pinned_logs (username, log_id) VALUES (?, ?)', [user.username, id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/users/pins/log', verifyToken, async (req, res) => {
+  const { id } = req.body;
+  try {
+    const user = await db.get('SELECT username FROM users WHERE id = ?', req.userId);
+    await db.run('DELETE FROM pinned_logs WHERE username = ? AND log_id = ?', [user.username, id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/users/:username/contributions', verifyToken, async (req, res) => {
-    const { username } = req.params;
+    const username = req.params.username.toLowerCase();
     try {
         // Get contribution counts for the last 365 days
         const contributions = await db.all(`
@@ -793,7 +1076,7 @@ app.get('/api/users/:username/contributions', verifyToken, async (req, res) => {
 });
 
 app.post('/api/users/:username/follow', verifyToken, async (req, res) => {
-    const { username } = req.params;
+    const username = req.params.username.toLowerCase();
     try {
         const currentUser = await db.get('SELECT username FROM users WHERE id = ?', [req.userId]);
         if (currentUser.username === username) return res.status(400).json({ error: "Cannot follow self" });
@@ -815,7 +1098,7 @@ app.post('/api/users/:username/follow', verifyToken, async (req, res) => {
 });
 
 app.delete('/api/users/:username/follow', verifyToken, async (req, res) => {
-    const { username } = req.params;
+    const username = req.params.username.toLowerCase();
     try {
         const currentUser = await db.get('SELECT username FROM users WHERE id = ?', [req.userId]);
         await db.run('DELETE FROM followers WHERE follower = ? AND followed = ?', [currentUser.username, username]);

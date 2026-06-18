@@ -6,14 +6,32 @@ export default function NewLogModal({ onClose, onSubmit, projectsList = [] }) {
   const [content, setContent] = useState('');
   const [status, setStatus] = useState('success');
   const [project, setProject] = useState('');
+  const [language, setLanguage] = useState('');
+  const [tags, setTags] = useState('');
   const [image, setImage] = useState(null);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (title && content) {
-      onSubmit({ title, content, status, image, project });
+      onSubmit({ title, content, status, image, project, language, tags });
     }
   };
+
+  const LANGUAGES = [
+    { value: '', label: '[ NONE / GLOBAL ]' },
+    { value: 'JavaScript', label: 'JavaScript' },
+    { value: 'TypeScript', label: 'TypeScript' },
+    { value: 'Python', label: 'Python' },
+    { value: 'C++', label: 'C++' },
+    { value: 'Rust', label: 'Rust' },
+    { value: 'Go', label: 'Go' },
+    { value: 'Java', label: 'Java' },
+    { value: 'Ruby', label: 'Ruby' },
+    { value: 'CSS', label: 'CSS' },
+    { value: 'HTML', label: 'HTML' },
+    { value: 'SQL', label: 'SQL' },
+    { value: 'Shell', label: 'Shell' },
+  ];
 
   return (
     <div className="modal-overlay">
@@ -53,6 +71,30 @@ export default function NewLogModal({ onClose, onSubmit, projectsList = [] }) {
               <option value="success">Standard / Success</option>
               <option value="error">Failure / Alert</option>
             </select>
+          </div>
+
+          <div className="input-group">
+            <label className="mono-text uppercase label-sm">Language</label>
+            <select 
+              className="terminal-input mono-text uppercase" 
+              value={language} 
+              onChange={(e) => setLanguage(e.target.value)}
+            >
+              {LANGUAGES.map(lang => (
+                <option key={lang.value} value={lang.value}>{lang.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="input-group">
+            <label className="mono-text uppercase label-sm">Technology tags (comma-separated)</label>
+            <input 
+              className="terminal-input mono-text" 
+              type="text" 
+              value={tags} 
+              onChange={(e) => setTags(e.target.value)}
+              placeholder="e.g. react, websockets, performance"
+            />
           </div>
 
           <div className="input-group">
